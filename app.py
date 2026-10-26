@@ -16,6 +16,7 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["JSON_SORT_KEYS"] = False
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 FLOW_STORE: dict[str, dict[str, Any]] = {}
 FLOW_TTL_SECONDS = max(
