@@ -680,11 +680,6 @@ def verify_aadhaar_otp_and_upsert(
         )
         .first()
     )
-    if not existing:
-        existing = db.query(AadhaarMaster).filter(
-            AadhaarMaster.masked_aadhaar == masked,
-            AadhaarMaster.aadhaar_hash.is_(None),
-        ).first()
 
     full_address = (
         data.get("full_address")

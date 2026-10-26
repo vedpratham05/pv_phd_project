@@ -1721,14 +1721,6 @@ def aadhaar_start(
     existing_aadhaar = db_visitor.query(AadhaarMaster).filter(
         AadhaarMaster.aadhaar_hash == aadhaar_hash
     ).first()
-    if not existing_aadhaar:
-        existing_aadhaar = db_visitor.query(AadhaarMaster).filter(
-            AadhaarMaster.masked_aadhaar == masked,
-            AadhaarMaster.aadhaar_hash.is_(None),
-        ).first()
-        if existing_aadhaar:
-            existing_aadhaar.aadhaar_hash = aadhaar_hash
-            db_visitor.commit()
 
     # Older E-KYC/faculty flows stored the shared Aadhaar record in the
     # college database. Import that verified identity into the visitor store
@@ -1738,11 +1730,6 @@ def aadhaar_start(
         legacy_aadhaar = db_college.query(AadhaarMaster).filter(
             AadhaarMaster.aadhaar_hash == aadhaar_hash
         ).first()
-        if not legacy_aadhaar:
-            legacy_aadhaar = db_college.query(AadhaarMaster).filter(
-                AadhaarMaster.masked_aadhaar == masked,
-                AadhaarMaster.aadhaar_hash.is_(None),
-            ).first()
         if legacy_aadhaar:
             existing_aadhaar = AadhaarMaster(
                 masked_aadhaar=legacy_aadhaar.masked_aadhaar,
