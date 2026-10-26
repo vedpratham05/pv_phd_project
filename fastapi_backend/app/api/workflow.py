@@ -1686,10 +1686,43 @@ def get_faculty_visitors(employee_id: str, db_visitor: Session = Depends(get_vis
 # =====================================================================
 
 @router.post("/aadhaar/start", response_model=AadhaarOtpStartResponse)
-def aadhaar_start(payload: AadhaarOtpStartRequest, response: Response, db_visitor: Session = Depends(get_visitor_db)):
+def aadhaar_start(
+    payload: AadhaarOtpStartRequest,
+    response: Response,
+    db_visitor: Session = Depends(get_visitor_db),
+    db_college: Session = Depends(get_college_db),
+):
     from ..services.aadhaar_service import mask_aadhaar, start_aadhaar_otp
     masked = mask_aadhaar(payload.aadhaar_number)
     existing_aadhaar = db_visitor.query(AadhaarMaster).filter(AadhaarMaster.masked_aadhaar == masked).first()
+
+    # Older E-KYC/faculty flows stored the shared Aadhaar record in the
+    # college database. Import that verified identity into the visitor store
+    # once so returning visitors do not need DigiLocker again and can use the
+    # visitor face-registration foreign key safely.
+    if not existing_aadhaar:
+        legacy_aadhaar = db_college.query(AadhaarMaster).filter(
+            AadhaarMaster.masked_aadhaar == masked
+        ).first()
+        if legacy_aadhaar:
+            existing_aadhaar = AadhaarMaster(
+                masked_aadhaar=legacy_aadhaar.masked_aadhaar,
+                full_name=legacy_aadhaar.full_name,
+                date_of_birth=legacy_aadhaar.date_of_birth,
+                gender=legacy_aadhaar.gender,
+                address=legacy_aadhaar.address,
+                transaction_id=legacy_aadhaar.transaction_id,
+                aadhaar_photo=legacy_aadhaar.aadhaar_photo,
+                year_of_birth=legacy_aadhaar.year_of_birth,
+                care_of=legacy_aadhaar.care_of,
+                mobile_hash=legacy_aadhaar.mobile_hash,
+                email_hash=legacy_aadhaar.email_hash,
+                share_code=legacy_aadhaar.share_code,
+                verification_timestamp=legacy_aadhaar.verification_timestamp,
+            )
+            db_visitor.add(existing_aadhaar)
+            db_visitor.commit()
+            db_visitor.refresh(existing_aadhaar)
 
     if existing_aadhaar:
         summary = AadhaarSummary(
