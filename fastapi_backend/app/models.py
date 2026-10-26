@@ -1,9 +1,9 @@
 from __future__ import annotations
 from datetime import datetime
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship
 
-Base = declarative_base()
+from .database import Base
 
 class AdminUser(Base):
     __tablename__ = "admin_users"
