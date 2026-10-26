@@ -195,30 +195,51 @@ function showResult(profile) {
   }
 }
 
+function showStoredAadhaarRecord(aadhaar) {
+  latestAadhaarPayload = { aadhaar, raw_response: {} };
+  isRevisitMode = true;
+  otpRow.classList.add('hidden');
+  otpInput.value = '';
+  sendOtpBtn.textContent = 'Existing Aadhaar Found';
+  sendOtpBtn.disabled = false;
+
+  showResult({
+    ...aadhaar,
+    name: aadhaar.full_name,
+    status: 'ALREADY VERIFIED',
+    message: 'Stored Aadhaar details loaded. DigiLocker verification is not required again.',
+    phone_number: phoneNumberInput.value.trim() || 'Previously verified',
+  });
+}
+
+aadhaarNumberInput.addEventListener('input', () => {
+  sendOtpBtn.textContent = 'Send OTP';
+  sendOtpBtn.disabled = false;
+  if (!aadhaarNumberInput.value.trim()) {
+    resultCard.classList.add('hidden');
+    otpRow.classList.add('hidden');
+  }
+});
+
 sendOtpBtn.addEventListener('click', async () => {
   const aadhaar_number = aadhaarNumberInput.value.trim();
   const digilockerWindow = window.open('', '_blank');
   setStatus('Processing...');
   resultCard.classList.add('hidden');
+  sendOtpBtn.disabled = true;
 
   try {
     const data = await apiRequest('/workflow/aadhaar/start', { aadhaar_number });
 
     if (data.pre_verified && data.aadhaar) {
-      isRevisitMode = true;
+      if (digilockerWindow) digilockerWindow.close();
       setStatus('Returning Visitor', 'success');
       setMessage(data.message, 'success');
-
-      latestAadhaarPayload = { aadhaar: data.aadhaar, raw_response: {} };
-
-      const profile = {
-        ...data.aadhaar,
-        name: data.aadhaar.full_name,
-        phone_number: phoneNumberInput.value.trim() || 'Pre-registered Account',
-      };
-      showResult(profile);
+      showStoredAadhaarRecord(data.aadhaar);
     } else {
       isRevisitMode = false;
+      sendOtpBtn.textContent = 'Send OTP';
+      sendOtpBtn.disabled = false;
       flowId = data.flow_id;
       if (data.authorization_url) {
         if (digilockerWindow) {
@@ -235,6 +256,7 @@ sendOtpBtn.addEventListener('click', async () => {
     }
   } catch (error) {
     if (digilockerWindow) digilockerWindow.close();
+    sendOtpBtn.disabled = false;
     setStatus('Error', 'error');
     setMessage(error.detail || error.error || 'Identity lookup failure.', 'error');
   }
