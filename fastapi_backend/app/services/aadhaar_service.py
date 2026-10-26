@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import logging
 import os
 import uuid
@@ -429,6 +430,14 @@ def mask_aadhaar(
     return f"XXXXXXXX{digits[-4:]}"
 
 
+def hash_aadhaar(aadhaar_number: str) -> str:
+    """Create a non-reversible lookup key for the full Aadhaar number."""
+    digits = "".join(character for character in str(aadhaar_number) if character.isdigit())
+    if len(digits) != 12:
+        raise ValueError("Aadhaar number must contain exactly 12 digits.")
+    return hashlib.sha256(digits.encode("utf-8")).hexdigest()
+
+
 # ============================================================
 # START OTP FLOW
 # ============================================================
@@ -662,14 +671,20 @@ def verify_aadhaar_otp_and_upsert(
     masked = mask_aadhaar(
         flow["aadhaar_number"]
     )
+    aadhaar_hash = hash_aadhaar(flow["aadhaar_number"])
 
     existing = (
         db.query(AadhaarMaster)
         .filter(
-            AadhaarMaster.masked_aadhaar == masked
+            AadhaarMaster.aadhaar_hash == aadhaar_hash
         )
         .first()
     )
+    if not existing:
+        existing = db.query(AadhaarMaster).filter(
+            AadhaarMaster.masked_aadhaar == masked,
+            AadhaarMaster.aadhaar_hash.is_(None),
+        ).first()
 
     full_address = (
         data.get("full_address")
@@ -692,6 +707,7 @@ def verify_aadhaar_otp_and_upsert(
     now = datetime.utcnow()
 
     if existing:
+        existing.aadhaar_hash = aadhaar_hash
         existing.full_name = full_name
 
         existing.date_of_birth = (
@@ -748,6 +764,7 @@ def verify_aadhaar_otp_and_upsert(
     else:
         aadhaar = AadhaarMaster(
             masked_aadhaar=masked,
+            aadhaar_hash=aadhaar_hash,
             full_name=full_name,
             date_of_birth=date_of_birth,
             gender=data.get("gender") or "",

@@ -421,6 +421,29 @@ def _auto_discover_cameras_on_startup() -> None:
 
 
 @router.on_event("startup")
+def _ensure_aadhaar_hash_schema() -> None:
+    """Add the exact, one-way Aadhaar lookup key to existing databases."""
+    for engine in (visitor_engine, college_engine):
+        with engine.begin() as conn:
+            columns = {
+                row[1] for row in conn.execute(
+                    text("PRAGMA table_info(aadhaar_master)")
+                ).fetchall()
+            }
+            if columns and "aadhaar_hash" not in columns:
+                conn.execute(text(
+                    "ALTER TABLE aadhaar_master ADD COLUMN "
+                    "aadhaar_hash VARCHAR(64)"
+                ))
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS "
+                    "ix_aadhaar_master_aadhaar_hash "
+                    "ON aadhaar_master (aadhaar_hash)"
+                ))
+    print("[*] Aadhaar exact-lookup schema ensured.")
+
+
+@router.on_event("startup")
 def _ensure_camera_tracking_schema() -> None:
     """Creates the camera_tracking_logs table in the visitor DB if it doesn't
     exist. This table is written to by the live Re-ID stream on every
@@ -1692,9 +1715,20 @@ def aadhaar_start(
     db_visitor: Session = Depends(get_visitor_db),
     db_college: Session = Depends(get_college_db),
 ):
-    from ..services.aadhaar_service import mask_aadhaar, start_aadhaar_otp
+    from ..services.aadhaar_service import hash_aadhaar, mask_aadhaar, start_aadhaar_otp
     masked = mask_aadhaar(payload.aadhaar_number)
-    existing_aadhaar = db_visitor.query(AadhaarMaster).filter(AadhaarMaster.masked_aadhaar == masked).first()
+    aadhaar_hash = hash_aadhaar(payload.aadhaar_number)
+    existing_aadhaar = db_visitor.query(AadhaarMaster).filter(
+        AadhaarMaster.aadhaar_hash == aadhaar_hash
+    ).first()
+    if not existing_aadhaar:
+        existing_aadhaar = db_visitor.query(AadhaarMaster).filter(
+            AadhaarMaster.masked_aadhaar == masked,
+            AadhaarMaster.aadhaar_hash.is_(None),
+        ).first()
+        if existing_aadhaar:
+            existing_aadhaar.aadhaar_hash = aadhaar_hash
+            db_visitor.commit()
 
     # Older E-KYC/faculty flows stored the shared Aadhaar record in the
     # college database. Import that verified identity into the visitor store
@@ -1702,11 +1736,17 @@ def aadhaar_start(
     # visitor face-registration foreign key safely.
     if not existing_aadhaar:
         legacy_aadhaar = db_college.query(AadhaarMaster).filter(
-            AadhaarMaster.masked_aadhaar == masked
+            AadhaarMaster.aadhaar_hash == aadhaar_hash
         ).first()
+        if not legacy_aadhaar:
+            legacy_aadhaar = db_college.query(AadhaarMaster).filter(
+                AadhaarMaster.masked_aadhaar == masked,
+                AadhaarMaster.aadhaar_hash.is_(None),
+            ).first()
         if legacy_aadhaar:
             existing_aadhaar = AadhaarMaster(
                 masked_aadhaar=legacy_aadhaar.masked_aadhaar,
+                aadhaar_hash=aadhaar_hash,
                 full_name=legacy_aadhaar.full_name,
                 date_of_birth=legacy_aadhaar.date_of_birth,
                 gender=legacy_aadhaar.gender,

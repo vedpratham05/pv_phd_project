@@ -69,6 +69,7 @@ class AadhaarMaster(Base):
     __tablename__ = "aadhaar_master"
     id = Column(Integer, primary_key=True, index=True)
     masked_aadhaar = Column(String(12), unique=True, nullable=False, index=True)
+    aadhaar_hash = Column(String(64), unique=True, nullable=True, index=True)
     full_name = Column(String(255), nullable=False)
     date_of_birth = Column(String(50), nullable=False)
     gender = Column(String(20), nullable=False)
