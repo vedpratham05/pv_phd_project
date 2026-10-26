@@ -1,0 +1,7 @@
+fastapi_backend/.env
+.env
+__pycache__/
+.venv/
+.venv_backup/
+.DS_Store
+*.py[cod]
