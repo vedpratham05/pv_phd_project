@@ -5,3 +5,8 @@ __pycache__/
 .venv_backup/
 .DS_Store
 *.py[cod]
+**/__pycache__/
+*.db
+*.pt
+fastapi_backend/static/uploads/
+sbox_*.csv

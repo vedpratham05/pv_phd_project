@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aadhaar Verification Form</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Sandbox Aadhaar eKYC</p>
+        <h1>Automatic Aadhaar verification form</h1>
+        <p class="subtext">Enter Aadhaar, complete secure DigiLocker OTP consent, then load the verified profile into the form.</p>
+      </div>
+      <div class="status-pill" id="statusPill">Ready</div>
+    </section>
+
+    <div class="mode-switch">
+      <button id="toggleVisitorViewBtn" class="mode-btn is-primary">
+        🛂 Visitor Entry Registration Desk
+      </button>
+      <button id="toggleFacultyViewBtn" class="mode-btn is-ghost">
+        🧑‍🏫 Faculty Verification Desk
+      </button>
+      <button id="toggleAdminViewBtn" class="mode-btn is-ghost">
+        🔒 Security &amp; College Admin Dashboard
+      </button>
+    </div>
+
+    <div id="visitorWorkspaceView">
+      <div class="process-rail">
+        <div class="process-rail__step">
+          <span class="process-rail__num">1</span>
+          <span class="process-rail__label">Verify Aadhaar</span>
+        </div>
+        <div class="process-rail__step">
+          <span class="process-rail__num">2</span>
+          <span class="process-rail__label">DigiLocker Consent</span>
+        </div>
+        <div class="process-rail__step">
+          <span class="process-rail__num">3</span>
+          <span class="process-rail__label">Register Face</span>
+        </div>
+        <div class="process-rail__step">
+          <span class="process-rail__num">4</span>
+          <span class="process-rail__label">Issue Visitor Pass</span>
+        </div>
+      </div>
+
+      <section class="card form-card" id="aadhaarForm">
+        <div class="grid">
+          <label>
+            <span>Aadhaar Number</span>
+            <input id="aadhaarNumber" type="text" maxlength="12" placeholder="Enter 12-digit Aadhaar">
+          </label>
+          <label>
+            <span>Phone Number</span>
+            <input id="phoneNumber" type="text" placeholder="Optional phone number label">
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="sendOtpBtn">Send OTP</button>
+        </div>
+
+        <div class="otp-row hidden" id="otpRow">
+          <label>
+            <span>OTP</span>
+            <input id="otpInput" type="text" maxlength="6" placeholder="Enter 6-digit OTP">
+          </label>
+          <button id="verifyBtn" class="secondary">Verify DigiLocker</button>
+        </div>
+
+        <p class="note" id="messageBox">Fill Aadhaar to begin.</p>
+      </section>
+
+      <section class="card result-card hidden" id="resultCard">
+        <div class="profile-top">
+          <div class="photo-wrap">
+            <img id="photoPreview" alt="Profile photo" />
+          </div>
+          <div>
+            <h2 id="profileName">Name</h2>
+            <p id="profileStatus">Status</p>
+            <p class="muted" id="profileMessage"></p>
+          </div>
+        </div>
+
+        <div class="details-grid">
+          <div><strong>Reference ID</strong><span id="referenceId"></span></div>
+          <div><strong>Phone Number</strong><span id="phoneDisplay"></span></div>
+          <div><strong>Gender</strong><span id="genderDisplay"></span></div>
+          <div><strong>Date of Birth</strong><span id="dobDisplay"></span></div>
+          <div><strong>Year of Birth</strong><span id="yobDisplay"></span></div>
+          <div><strong>Care Of</strong><span id="careOfDisplay"></span></div>
+          <div><strong>Full Address</strong><span id="fullAddressDisplay"></span></div>
+          <div><strong>Mobile Hash</strong><span id="mobileHashDisplay"></span></div>
+          <div><strong>Email Hash</strong><span id="emailHashDisplay"></span></div>
+          <div><strong>Share Code</strong><span id="shareCodeDisplay"></span></div>
+        </div>
+
+        <div class="address-box">
+          <h3>Address</h3>
+          <pre id="addressDisplay"></pre>
+        </div>
+
+        <div class="actions">
+          <button id="startCaptureBtn">Capture Face</button>
+        </div>
+      </section>
+
+      <section class="card hidden" id="faceRegistrationCard">
+        <h2 id="faceCardTitle">Face Registration</h2>
+        <p class="note" id="faceMessage">Please position your face in the center and follow the instructions.</p>
+
+        <div class="video-container">
+          <video id="videoPreview" autoplay muted playsinline></video>
+          <div class="face-guide"></div>
+        </div>
+
+        <div class="button-group" id="registrationControls">
+          <button id="captureFrontBtn">Capture Front</button>
+          <button id="captureLeftBtn">Capture Left</button>
+          <button id="captureRightBtn">Capture Right</button>
+        </div>
+
+        <div class="button-group hidden" id="revisitControls">
+          <button id="authenticateFaceBtn" style="background: linear-gradient(135deg, var(--verify), #059669); padding: 14px 24px; width: 100%;">Verify &amp; Authenticate Face</button>
+        </div>
+
+        <div class="actions">
+          <button id="registerFaceBtn" disabled>Register Face</button>
+          <button id="retryCaptureBtn" class="hidden secondary">Retry Capture</button>
+        </div>
+      </section>
+
+      <section class="card hidden" id="visitorFormCard">
+        <h2>Digital Visitor Form</h2>
+        <p class="note">Your details have been pre-filled. Please complete the form to generate your pass.</p>
+
+        <div class="grid">
+          <label>
+            <span>Full Name</span>
+            <input id="formFullName" type="text" readonly>
+          </label>
+          <label>
+            <span>Date of Birth</span>
+            <input id="formDob" type="text" readonly>
+          </label>
+          <label>
+            <span>Mobile Number</span>
+            <input id="formMobileNumber" type="text" placeholder="Enter mobile number">
+          </label>
+          <label>
+            <span>Email</span>
+            <input id="formEmail" type="email" placeholder="Enter email address">
+          </label>
+          <label><span>Purpose of Visit</span><input id="formPurpose" type="text"></label>
+          <label>
+            <span>Department</span>
+            <select id="formDepartment"></select>
+          </label>
+          <label>
+            <span>Person to Meet</span>
+            <select id="formEmployee"></select>
+          </label>
+          <label><span>Expected Duration</span><input id="formDuration" type="text"></label>
+          <label><span>Vehicle Number (Optional)</span><input id="formVehicle" type="text"></label>
+          <label>
+            <span>Grace Period Before Alert (minutes)</span>
+            <input id="formGracePeriod" type="number" min="1" max="60" value="10">
+          </label>
+        </div>
+
+        <div class="meeting-location-note" id="meetingLocationNote">
+          <span class="meeting-location-note__icon">📍</span>
+          <span>Meeting location: <strong id="formMeetingFloor">—</strong></span>
+          <span class="meeting-location-note__hint">You'll get a grace period to reach this floor before security is alerted.</span>
+        </div>
+
+        <button id="submitVisitorFormBtn">Generate Visitor Pass</button>
+      </section>
+    </div>
+
+    <div id="facultyWorkspaceView" class="hidden">
+      <div class="process-rail">
+        <div class="process-rail__step">
+          <span class="process-rail__num">1</span>
+          <span class="process-rail__label">Employee ID + Aadhaar</span>
+        </div>
+        <div class="process-rail__step">
+          <span class="process-rail__num">2</span>
+          <span class="process-rail__label">DigiLocker Consent</span>
+        </div>
+        <div class="process-rail__step">
+          <span class="process-rail__num">3</span>
+          <span class="process-rail__label">Face Verification</span>
+        </div>
+        <div class="process-rail__step">
+          <span class="process-rail__num">4</span>
+          <span class="process-rail__label">Verified Faculty Badge</span>
+        </div>
+      </div>
+
+      <section class="card form-card" id="facultyAadhaarCard">
+        <h2>🧑‍🏫 Faculty Identity Verification</h2>
+        <p class="note">Faculty members verify with the same Aadhaar + face pipeline as visitors. Enter your Employee ID and Aadhaar to begin.</p>
+        <div class="grid" style="margin-top: 1rem;">
+          <label>
+            <span>Employee ID</span>
+            <input id="facultyEmployeeId" type="text" placeholder="e.g. FAC-1023">
+          </label>
+          <label>
+            <span>Aadhaar Number</span>
+            <input id="facultyAadhaarNumber" type="text" maxlength="12" placeholder="Enter 12-digit Aadhaar">
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="facultySendOtpBtn">Verify Faculty &amp; Send OTP</button>
+        </div>
+
+        <div class="otp-row hidden" id="facultyOtpRow">
+          <label>
+            <span>OTP</span>
+            <input id="facultyOtpInput" type="text" maxlength="6" placeholder="Enter 6-digit OTP">
+          </label>
+          <button id="facultyVerifyBtn" class="secondary">Verify DigiLocker</button>
+        </div>
+
+        <p class="note" id="facultyMessageBox">Enter your Employee ID and Aadhaar to begin verification.</p>
+      </section>
+
+      <section class="card hidden" id="facultyFaceCard">
+        <h2 id="facultyFaceCardTitle">Faculty Face Registration</h2>
+        <p class="note" id="facultyFaceMessage">Please position your face in the center and follow the instructions.</p>
+
+        <div class="video-container">
+          <video id="facultyVideoPreview" autoplay muted playsinline></video>
+          <div class="face-guide" id="facultyFaceGuide"></div>
+        </div>
+
+        <div class="button-group" id="facultyRegistrationControls">
+          <button id="facultyCaptureFrontBtn">Capture Front</button>
+          <button id="facultyCaptureLeftBtn">Capture Left</button>
+          <button id="facultyCaptureRightBtn">Capture Right</button>
+        </div>
+
+        <div class="button-group hidden" id="facultyRevisitControls">
+          <button id="facultyAuthenticateFaceBtn" style="background: linear-gradient(135deg, var(--verify), #059669); padding: 14px 24px; width: 100%;">Verify &amp; Authenticate Face</button>
+          <button id="facultyRegisterNewFaceBtn" class="secondary hidden" style="padding: 14px 24px; width: 100%; margin-top: 10px;">Register New Face</button>
+        </div>
+
+        <div class="actions">
+          <button id="facultyRegisterFaceBtn" disabled>Register Face</button>
+          <button id="facultyRetryCaptureBtn" class="secondary hidden">Retry Capture</button>
+        </div>
+      </section>
+
+      <section class="card form-card hidden" id="facultyVerifiedCard">
+        <h2>✅ Faculty Verification Complete</h2>
+        <p class="note" id="facultyVerifiedSummary"></p>
+        <div class="details-grid" style="margin-top: 1rem;">
+          <div><strong>Name</strong><span id="facultyVerifiedName">—</span></div>
+          <div><strong>Employee ID</strong><span id="facultyVerifiedEmpId">—</span></div>
+          <div><strong>Department</strong><span id="facultyVerifiedDept">—</span></div>
+          <div><strong>Assigned Floor</strong><span id="facultyVerifiedFloor">—</span></div>
+        </div>
+
+        <!-- Faculty self-service: edit own floor / room / dept / phone -->
+        <div style="margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem;">
+          <h3 style="margin: 0 0 0.5rem;">✏️ Edit My Details</h3>
+          <p class="note">Update your floor, room, department or phone. Visitor routing, camera tracking and SMS alerts use these immediately.</p>
+          <div class="grid" style="margin-top: 0.75rem;">
+            <label><span>Department</span><input id="facEditDept" type="text"></label>
+            <label><span>Room Number</span><input id="facEditRoom" type="text"></label>
+            <label><span>Assigned Floor</span><input id="facEditFloor" type="number" min="0"></label>
+            <label><span>Phone Number (SMS)</span><input id="facEditPhone" type="text" placeholder="+91XXXXXXXXXX"></label>
+          </div>
+          <div class="actions" style="margin-top: 0.75rem;">
+            <button id="facSaveDetailsBtn">Save My Details</button>
+          </div>
+          <p class="note" id="facEditMessage"></p>
+        </div>
+
+        <!-- Faculty visitor tracking: who is coming, where, how long waiting -->
+        <div style="margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem;">
+          <h3 style="margin: 0 0 0.5rem;">👥 My Visitors — Live Tracking</h3>
+          <p class="note">Real-time: which camera your visitor is at, when they arrived, minutes waited, and exit.</p>
+
+          <div id="facVisitorFeedWrap" class="cam-feed-wrap hidden" style="margin-bottom: 1rem;">
+            <img id="facVisitorFeed" class="cam-feed-frame" alt="Visitor camera view">
+            <div class="face-overlay" id="facVisitorFeedLabel" style="position:absolute;bottom:8px;left:8px;"></div>
+          </div>
+
+          <div class="log-table-wrap">
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th>Visitor</th>
+                  <th>Purpose</th>
+                  <th>Current Camera</th>
+                  <th>Arrived</th>
+                  <th>Waited (min)</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="facVisitorsBody">
+                <tr><td colspan="6" class="log-table__empty">No visitors yet. You'll see them here the moment they check in to meet you.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="adminWorkspaceView" class="hidden">
+      <section class="card admin-auth-card" id="adminAuthGateCard">
+        <h2>🔒 Secure Security Dashboard Entry Login</h2>
+        <p class="note">Enter Administrator ID Credentials to unlock live multi-camera tracking streams.</p>
+        <div class="grid" style="margin-top: 1.5rem;">
+          <label>
+            <span>Security Guard ID / Username</span>
+            <input id="adminUsername" type="text" placeholder="Enter security login ID (e.g., admin)">
+          </label>
+          <label>
+            <span>Secure Password</span>
+            <input id="adminPassword" type="password" placeholder="••••••••">
+          </label>
+        </div>
+        <p id="authErrorMessage" class="auth-error hidden"></p>
+        <div class="actions" style="margin-top: 1rem;">
+          <button id="submitAdminAuthBtn" style="width: 100%;">Authenticate &amp; Unlock Streams</button>
+        </div>
+      </section>
+
+      <section class="card form-card hidden" id="facultyRegistrationCard">
+        <h2>🧑‍🏫 Faculty Registration (Admin)</h2>
+        <p class="note">Register a new faculty member into the college database (faculty_registration table). Aadhaar details are optional at this stage — the faculty member completes OTP + face verification themselves at the Faculty Verification Desk.</p>
+        <div class="grid" style="margin-top: 1rem;">
+          <label>
+            <span>Employee ID *</span>
+            <input id="regFacEmployeeId" type="text" placeholder="e.g. FAC-1023">
+          </label>
+          <label>
+            <span>Full Name *</span>
+            <input id="regFacName" type="text" placeholder="Faculty full name">
+          </label>
+          <label>
+            <span>Department *</span>
+            <input id="regFacDepartment" type="text" placeholder="e.g. IT">
+          </label>
+          <label>
+            <span>Designation</span>
+            <input id="regFacDesignation" type="text" placeholder="e.g. Assistant Professor">
+          </label>
+          <label>
+            <span>Registered Phone Number (SMS alerts) *</span>
+            <input id="regFacPhone" type="text" placeholder="+91XXXXXXXXXX">
+          </label>
+          <label>
+            <span>Email</span>
+            <input id="regFacEmail" type="email" placeholder="faculty@college.edu">
+          </label>
+          <label>
+            <span>Room Number *</span>
+            <input id="regFacRoom" type="text" placeholder="e.g. 204">
+          </label>
+          <label>
+            <span>Assigned Floor *</span>
+            <input id="regFacFloor" type="number" min="0" placeholder="e.g. 2">
+          </label>
+          <label>
+            <span>Aadhaar Number (optional, stored masked)</span>
+            <input id="regFacAadhaar" type="text" maxlength="12" placeholder="12-digit Aadhaar">
+          </label>
+        </div>
+        <div class="actions" style="margin-top: 1rem;">
+          <button id="registerFacultyBtn">Register Faculty Member</button>
+        </div>
+        <p class="note" id="regFacMessage"></p>
+
+        <div class="log-table-wrap" style="margin-top: 1.5rem;">
+          <h3 style="margin: 0 0 0.5rem;">Registered Faculty Directory</h3>
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Employee ID</th>
+                <th>Name</th>
+                <th>Department</th>
+                <th>Phone</th>
+                <th>Room / Floor</th>
+                <th>Aadhaar</th>
+                <th>Verification Status</th>
+              </tr>
+            </thead>
+            <tbody id="registeredFacultyBody">
+              <tr><td colspan="7" class="log-table__empty">Loading faculty directory...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card admin-dashboard-card hidden" id="adminDashboardCard">
+        <div class="console-header">
+          <h2>Live Security Surveillance Node Monitoring Hub</h2>
+          <div class="live-indicator">
+            <span class="live-dot"></span>
+            <span class="live-label">Live Feeds Connection Secured</span>
+          </div>
+        </div>
+        <p class="note">Real-time Multi-Camera Re-Identification (Re-ID) tracking timeline loop logs.</p>
+
+        <div class="stream-panel" id="liveAdminStreamContainer">
+          <div class="stream-panel__meta">
+            <span class="stream-panel__tag">📹 CAM-NODE FEED: Camera_Node_1_Entrance</span>
+
+            <div class="stream-panel__sync">
+              <input type="text" id="dynamicCamIpInput" placeholder="Auto (leave blank) or e.g. 192.168.1.42">
+              <button id="syncCamIpBtn">Sync Feed</button>
+            </div>
+
+            <span id="streamStatusIndicator" class="stream-panel__status">⏳ WAITING FOR CAMERA…</span>
+          </div>
+
+          <div id="camFeedWrapper" class="cam-feed-wrap">
+            <img id="adminLiveFeedFrame"
+                 class="cam-feed-frame hidden"
+                 alt="Entrance camera feed">
+
+            <div id="camFeedOffline" class="cam-feed-offline">
+              <div class="cam-feed-offline__icon">📷</div>
+              <div class="cam-feed-offline__text">Surveillance Stream Offline</div>
+              <div class="cam-feed-offline__hint">Start IP Webcam on the entrance phone (same WiFi). It will be detected automatically.</div>
+            </div>
+
+            <div id="faceOverlay" class="face-overlay hidden">
+              <div id="overlayName" class="face-overlay__name"></div>
+              <div id="overlayFloors" class="face-overlay__floors"></div>
+            </div>
+          </div>
+
+          <div class="detected-panel hidden" id="detectedPersonPanel">
+            <div class="detected-panel__header">
+              <span class="detected-panel__label">📋 Matched Visitor Record</span>
+              <span class="detected-panel__status" id="detectedStatusBadge">—</span>
+            </div>
+            <div class="detected-panel__grid">
+              <div><strong>Name</strong><span id="detectedName">—</span></div>
+              <div><strong>Visitor ID</strong><span id="detectedVisitorId">—</span></div>
+              <div><strong>Department</strong><span id="detectedDepartment">—</span></div>
+              <div><strong>Person to Meet</strong><span id="detectedPersonToMeet">—</span></div>
+              <div><strong>Current Floor</strong><span id="detectedCurrentFloor">—</span></div>
+              <div><strong>Target Floor</strong><span id="detectedTargetFloor">—</span></div>
+              <div><strong>Purpose of Visit</strong><span id="detectedPurpose">—</span></div>
+              <div><strong>Last Seen</strong><span id="detectedLastSeen">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ALL CAMERA NODES — dynamic grid populated from GET /workflow/cameras.
+             Entrance (Floor 0), First Floor (Floor 1), and auto-added faculty
+             room cameras. Assign each phone's IP here to bring it online. -->
+        <div class="log-table-wrap" style="margin-bottom: 1.5rem;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;">
+            <h3 style="margin: 0 0 0.5rem;">📹 All Camera Nodes</h3>
+            <button type="button" id="autoDetectCamsBtn" class="btn btn--small">🔍 Auto-Detect Cameras on WiFi</button>
+          </div>
+          <p class="note">Phones are found automatically on the same WiFi (IP Webcam on port 8080) — no need to type an IP. Floor 0 = Entrance, Floor 1 = second phone, plus a room camera per faculty. You can still assign an IP manually below.</p>
+          <div id="autoDetectMessage" class="note" style="display:none;"></div>
+          <div id="cameraFeedsContainer" class="camera-grid">
+            <div class="log-table__empty" id="cameraFeedsEmpty">Loading camera nodes…</div>
+          </div>
+        </div>
+
+        <div class="log-table-wrap" style="margin-bottom: 1.5rem;">
+          <h3 style="margin: 0 0 0.5rem;">🚨 Admin Alerts — Floor Violation Escalations</h3>
+          <p class="note">Flow: Admin Alert → Send Alert to Security → Security Detains Visitor → Visitor Blocked by Admin.</p>
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Alert Time</th>
+                <th>Visitor</th>
+                <th>Meeting / Dept</th>
+                <th>Detected Floor</th>
+                <th>Alert Details</th>
+                <th>Escalation Action</th>
+              </tr>
+            </thead>
+            <tbody id="securityAlertsBody">
+              <tr id="emptySecurityAlertsRow">
+                <td colspan="6" class="log-table__empty">
+                  No active security alerts. All visitors are within permitted zones.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="log-table-wrap">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Visitor Name</th>
+                <th>ID Reference</th>
+                <th>Location Node</th>
+                <th>Floor Map Location</th>
+                <th>Trace Log Details / Alert Response</th>
+              </tr>
+            </thead>
+            <tbody id="surveillanceLogBody">
+              <tr id="emptySurveillanceRow">
+                <td colspan="6" class="log-table__empty">
+                  Awaiting active target detection tracking stream packages...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
