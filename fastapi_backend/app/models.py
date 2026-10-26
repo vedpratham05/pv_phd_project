@@ -24,6 +24,7 @@ class FacultyMaster(Base):
     # Faculty verification (mirrors visitor Aadhaar flow). These columns are
     # auto-added by the startup migration in routers/workflow.py.
     masked_aadhaar = Column(String(12), nullable=True)
+    aadhaar_hash = Column(String(64), nullable=True, index=True)
     is_verified = Column(Boolean, default=False)
     aadhaar_verified_at = Column(DateTime, nullable=True)
 
@@ -45,6 +46,7 @@ class FacultyRegistration(Base):
     email = Column(String(255), nullable=True)
     designation = Column(String(255), nullable=True)
     masked_aadhaar = Column(String(12), nullable=True)
+    aadhaar_hash = Column(String(64), nullable=True, index=True)
     full_name = Column(String(255), nullable=True)
     date_of_birth = Column(String(20), nullable=True)
     gender = Column(String(10), nullable=True)

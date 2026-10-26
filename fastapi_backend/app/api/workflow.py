@@ -176,11 +176,16 @@ def _ensure_faculty_verification_schema() -> None:
         }
         for col_name, col_def in [
             ("masked_aadhaar", "VARCHAR(12)"),
+            ("aadhaar_hash", "VARCHAR(64)"),
             ("is_verified", "BOOLEAN DEFAULT 0"),
             ("aadhaar_verified_at", "DATETIME"),
         ]:
             if col_name not in existing_cols:
                 conn.execute(text(f"ALTER TABLE faculty_master ADD COLUMN {col_name} {col_def}"))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_faculty_master_aadhaar_hash "
+            "ON faculty_master (aadhaar_hash)"
+        ))
     print("[*] Faculty verification schema ensured (faculty_face_embeddings + aadhaar columns).")
 
 
@@ -203,6 +208,7 @@ def _ensure_faculty_registration_schema() -> None:
             "email VARCHAR(255), "
             "designation VARCHAR(255), "
             "masked_aadhaar VARCHAR(12), "
+            "aadhaar_hash VARCHAR(64), "
             "full_name VARCHAR(255), "
             "date_of_birth VARCHAR(20), "
             "gender VARCHAR(10), "
@@ -211,6 +217,15 @@ def _ensure_faculty_registration_schema() -> None:
             "is_aadhaar_verified BOOLEAN DEFAULT 0, "
             "registered_at DATETIME)"
         ))
+        existing_cols = {
+            row[1] for row in conn.execute(
+            text("PRAGMA table_info(faculty_registration)")
+            ).fetchall()
+        }
+        if "aadhaar_hash" not in existing_cols:
+            conn.execute(text(
+            "ALTER TABLE faculty_registration ADD COLUMN aadhaar_hash VARCHAR(64)"
+            ))
     print("[*] Faculty registration table ensured in college.db (faculty_registration).")
 
 
@@ -237,8 +252,18 @@ def _ensure_faculty_identity_college_schema() -> None:
             "mobile_hash VARCHAR(255), "
             "email_hash VARCHAR(255), "
             "share_code VARCHAR(10), "
+            "aadhaar_hash VARCHAR(64), "
             "verification_timestamp DATETIME)"
         ))
+        identity_cols = {
+            row[1] for row in conn.execute(
+                text("PRAGMA table_info(aadhaar_master)")
+            ).fetchall()
+        }
+        if "aadhaar_hash" not in identity_cols:
+            conn.execute(text(
+                "ALTER TABLE aadhaar_master ADD COLUMN aadhaar_hash VARCHAR(64)"
+            ))
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS verification_logs ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -1391,18 +1416,58 @@ def faculty_aadhaar_start(payload: FacultyAadhaarStartRequest, db_college: Sessi
     """Step 1 of faculty verification: validate the employee ID, then either
     short-circuit to the face-scan step (already verified faculty = revisit
     mode, exactly like returning visitors) or trigger an Aadhaar OTP."""
-    from ..services.aadhaar_service import mask_aadhaar, start_aadhaar_otp
+    from ..services.aadhaar_service import hash_aadhaar, mask_aadhaar, start_aadhaar_otp
 
     faculty = _get_faculty_or_404(db_college, payload.employee_id)
     masked = mask_aadhaar(payload.aadhaar_number)
+    aadhaar_hash = hash_aadhaar(payload.aadhaar_number)
 
     already_verified = db_college.execute(
-        text("SELECT is_verified, masked_aadhaar FROM faculty_master WHERE id = :fid"),
+        text("SELECT is_verified, masked_aadhaar, aadhaar_hash FROM faculty_master WHERE id = :fid"),
         {"fid": faculty.id}
     ).fetchone()
 
-    if already_verified and already_verified[0]:
-        if already_verified[1] and already_verified[1] != masked:
+    registration = db_college.execute(
+        text(
+            "SELECT is_aadhaar_verified, masked_aadhaar, aadhaar_hash "
+            "FROM faculty_registration WHERE employee_id = :eid"
+        ),
+        {"eid": faculty.employee_id},
+    ).fetchone()
+
+    verified = bool(
+        already_verified
+        and already_verified[0]
+        and (
+            already_verified[2] == aadhaar_hash
+            or (already_verified[2] is None and already_verified[1] == masked)
+        )
+    ) or bool(
+        registration
+        and registration[0]
+        and (
+            registration[2] == aadhaar_hash
+            or (registration[2] is None and registration[1] == masked)
+        )
+    )
+
+    has_verified_record = bool(
+        already_verified and already_verified[0]
+    ) or bool(
+        registration and registration[0]
+    )
+    if has_verified_record and not verified:
+        raise HTTPException(
+            status_code=400,
+            detail="This Aadhaar number does not match the one registered for this faculty member."
+        )
+
+    if verified:
+        stored_masked = (
+            already_verified[1] if already_verified and already_verified[1]
+            else registration[1] if registration else masked
+        )
+        if stored_masked != masked:
             raise HTTPException(
                 status_code=400,
                 detail="This Aadhaar number does not match the one registered for this faculty member."
@@ -1478,17 +1543,18 @@ def faculty_aadhaar_verify(
         raise HTTPException(status_code=400, detail=last_error or "OTP verification failed.")
 
     db_college.execute(
-        text("UPDATE faculty_master SET masked_aadhaar = :m, is_verified = 1, "
+        text("UPDATE faculty_master SET masked_aadhaar = :m, aadhaar_hash = :h, is_verified = 1, "
              "aadhaar_verified_at = :t WHERE id = :fid"),
-        {"m": aadhaar.masked_aadhaar, "t": datetime.utcnow(), "fid": faculty.id}
+        {"m": aadhaar.masked_aadhaar, "h": aadhaar.aadhaar_hash, "t": datetime.utcnow(), "fid": faculty.id}
     )
     # Sync the full identity record into faculty_registration as well.
     db_college.execute(
-        text("UPDATE faculty_registration SET masked_aadhaar = :m, full_name = :fn, "
+        text("UPDATE faculty_registration SET masked_aadhaar = :m, aadhaar_hash = :h, full_name = :fn, "
              "date_of_birth = :dob, gender = :g, address = :addr, aadhaar_photo = :photo, "
              "is_aadhaar_verified = 1 WHERE employee_id = :eid"),
         {
             "m": aadhaar.masked_aadhaar,
+            "h": aadhaar.aadhaar_hash,
             "fn": aadhaar.full_name,
             "dob": aadhaar.date_of_birth,
             "g": aadhaar.gender,
